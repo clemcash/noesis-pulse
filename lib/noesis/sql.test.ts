@@ -8,6 +8,7 @@ describe("assertReadOnly", () => {
     "with a as (select 1) select * from a",
     "select 1;",
     "select 'updated_at' as col",
+    "select 'it''s' as s",
   ])("accepte %s", (sql) => {
     expect(() => assertReadOnly(sql)).not.toThrow();
   });
@@ -23,6 +24,19 @@ describe("assertReadOnly", () => {
     "grant all on a to b",
     "copy a to '/tmp/x'",
     "",
+    "select '--'; drop table public.messages",
+    "select '/*'; drop table x; select '*/'",
+    "select 1 into newt from a",
+    "select nextval('s')",
+    "select set_config('a','b',false)",
+    "select pg_read_file('/etc/passwd')",
+    "select lo_import('/x')",
+    "select pg_advisory_lock(1)",
+    "select $$x$$",
+    "select E'\\'' ",
+    "select 'abc",
+    'select "x" from a',
+    "select 1 -- comment",
   ])("refuse %s", (sql) => {
     expect(() => assertReadOnly(sql)).toThrow(/Requête refusée/);
   });
@@ -42,5 +56,6 @@ describe("lit", () => {
     expect(lit.int(5)).toBe("5");
     expect(() => lit.int(1.5)).toThrow();
     expect(() => lit.int(Number.NaN)).toThrow();
+    expect(() => lit.int(1e21)).toThrow();
   });
 });
