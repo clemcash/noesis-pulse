@@ -12,7 +12,7 @@ export async function sendMagicLink(_prev: LoginState, fd: FormData): Promise<Lo
   const email = String(fd.get("email") ?? "").trim();
   if (isAllowedEmail(email, env.allowedEmail)) {
     const h = await headers();
-    const origin = h.get("origin") ?? `https://${h.get("host")}`;
+    const origin = (process.env.SITE_URL || h.get("origin") || "http://localhost:3020").replace(/\/+$/, "");
     const sb = await supabaseServer();
     const { error } = await sb.auth.signInWithOtp({
       email,
