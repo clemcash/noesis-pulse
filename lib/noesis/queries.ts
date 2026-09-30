@@ -225,3 +225,26 @@ export function mapUserDetail(rows: Row[]): UserDetail | null {
     skills: parseJson<{ skill: string; avg: number; n: number }[]>(r.skills).map((s) => ({ skill: s.skill, avg: num(s.avg), n: num(s.n) })),
   };
 }
+
+// ---------- Résumé d'une journée ----------
+
+export type DaySummary = { newUsers: number; active: number; ai: number; aiPrev: number };
+
+export function daySummarySql(from: Date, to: Date, prevFrom: Date): string {
+  const f = lit.ts(from);
+  const t = lit.ts(to);
+  const pf = lit.ts(prevFrom);
+  return `
+with ai as (select created_at from (${AI_UNION}) x where created_at >= ${pf} and created_at < ${t}),
+act as (select user_id from (${ACT_UNION}) a where created_at >= ${f} and created_at < ${t})
+select
+  (select count(*) from auth.users where created_at >= ${f} and created_at < ${t})::int as new_users,
+  (select count(distinct user_id) from act)::int as active,
+  (select count(*) from ai where created_at >= ${f})::int as ai,
+  (select count(*) from ai where created_at < ${f})::int as ai_prev`;
+}
+
+export function mapDaySummary(rows: Row[]): DaySummary {
+  const r = rows[0] ?? {};
+  return { newUsers: num(r.new_users), active: num(r.active), ai: num(r.ai), aiPrev: num(r.ai_prev) };
+}

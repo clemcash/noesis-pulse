@@ -21,6 +21,7 @@ describe("toutes les requêtes passent la garde lecture seule", () => {
     q.latestSignupsSql(5),
     q.usersListSql(),
     q.userDetailSql(U1),
+    q.daySummarySql(hoursAgo(24), now(), hoursAgo(48)),
   ])("%#", (sql) => {
     expect(() => assertReadOnly(sql)).not.toThrow();
     expect(sql).not.toMatch(/\b(content|question|goal|topic)\b/);
@@ -91,5 +92,12 @@ describe("utilisateurs", () => {
   });
   it("fiche inconnue → null", async () => {
     expect(q.mapUserDetail(await query(db, q.userDetailSql("44444444-4444-4444-8444-444444444444")))).toBeNull();
+  });
+});
+
+describe("résumé d'une journée", () => {
+  it("compte inscrits, actifs et demandes sur [from, to[ et la veille", async () => {
+    const s = q.mapDaySummary(await query(db, q.daySummarySql(hoursAgo(24), now(), hoursAgo(48))));
+    expect(s).toEqual({ newUsers: 1, active: 2, ai: 3, aiPrev: 1 });
   });
 });
