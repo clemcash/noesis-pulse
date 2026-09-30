@@ -28,7 +28,9 @@ Tableau de bord de suivi **privé** (un seul utilisateur : le créateur de Noesi
 - **Accès Noesis** : **Supabase Management API** avec un jeton d'accès personnel (PAT) :
   - `POST /v1/projects/{ref}/database/query` → SQL agrégé en lecture sur la base Noesis ;
   - endpoints d'usage / analytics → compteurs de requêtes API, taille base et stockage.
-- **Groq** : sonde synthétique avec la clé de Noesis (lecture des en-têtes `x-ratelimit-*`).
+- **Groq** : avec la clé de Noesis. Les limites Groq sont par organisation, donc chaque sonde consomme le quota de Noesis → sondes espacées :
+  - toutes les 5 min : `GET /openai/v1/models` (gratuit) → disponibilité + latence de l'API ;
+  - sonde d'inférence `openai/gpt-oss-120b` toutes les **30 min** (immédiatement re-sondé si la précédente a échoué), `openai/gpt-oss-20b` toutes les **60 min** → ≈ 72 requêtes/jour ; lecture des en-têtes `x-ratelimit-*` (quota journalier de requêtes).
 - **Alertes** : bot Telegram (Bot API `sendMessage`).
 - **Tests** : Vitest.
 
@@ -41,11 +43,11 @@ noesis-pulse (Vercel)
 ├─ POST /api/collect   ← pg_cron toutes les 5 min (Supabase Pulse, pg_net) · header secret
 │   1. noesis.collect()   SQL via Management API
 │   2. supabaseUsage()    usage API, taille base, stockage (Management API)
-│   3. groqProbe()        sonde 120b + 20b
+│   3. groq               GET /models (5 min) + sonde 120b (30 min) / 20b (60 min)
 │   4. insert snapshots   + alerts.evaluate(snapshot)
 ├─ POST /api/digest    ← pg_cron quotidien 8h (Europe/Paris) · header secret → Telegram
 ├─ POST /api/health-check ← pg_cron toutes les 15 min · header secret (alerte collector_stale)
-├─ POST /api/alerts/test  (depuis la page Alertes, session requise)
+├─ Server actions de /alerts (session requise) : modifier un seuil, tester Telegram
 └─ Pages (Server Components, lecture seule, rafraîchies toutes les 60 s côté client)
     /             Vue d'ensemble
     /users        Utilisateurs  → /users/[id]  Fiche
@@ -61,7 +63,7 @@ noesis-pulse (Vercel)
 | `lib/noesis/client.ts` | Exécute un SQL sur Noesis via Management API. **Refuse tout ce qui n'est pas un `SELECT`/`WITH … SELECT` unique.** Seul point de contact avec la base Noesis. | PAT, ref projet |
 | `lib/noesis/queries.ts` | Les requêtes SQL nommées (en ligne, demandes par tranche, par fonctionnalité, utilisateurs, fiche, derniers inscrits). Pures chaînes + mapping typé. | client |
 | `lib/sources/supabase-usage.ts` | Usage API, taille base, stockage de Noesis. | PAT |
-| `lib/sources/groq-probe.ts` | Sonde : 1 requête minuscule (`max_tokens` minimal) par modèle ; retourne `{ ok, latencyMs, remainingRequests, remainingTokens, limit* }`. | clé Groq |
+| `lib/sources/groq.ts` | `checkGroqApi()` (GET /models) et `probeGroqModel()` (1 requête minuscule) ; planification des sondes. | clé Groq |
 | `lib/collect.ts` | Orchestration d'un relevé ; chaque source isolée (`Promise.allSettled`), erreurs consignées. | sources, store |
 | `lib/store.ts` | Lecture/écriture `snapshots`, `alerts`, `alert_rules` dans la base Pulse. | Supabase Pulse |
 | `lib/alerts/rules.ts` | Fonctions pures : `(snapshot, historique, règles, alertes ouvertes) → { toOpen, toResolve }`. | — |
@@ -120,9 +122,9 @@ Sélecteur de période global : 24 h / 7 j / 30 j. Horodatage « relevé il y a 
 Règles par défaut (éditables) :
 | clé | condition |
 |---|---|
-| `groq_down` | modèle 120b `ok=false` sur 2 relevés consécutifs |
-| `groq_slow` | latence 120b > 5000 ms sur 2 relevés consécutifs |
-| `groq_quota` | quota journalier consommé > 80 % |
+| `groq_down` | API Groq (`/models`) KO sur 2 relevés consécutifs, **ou** dernière sonde 120b en échec |
+| `groq_slow` | dernière sonde 120b réussie avec latence > 5000 ms |
+| `groq_quota` | quota journalier de requêtes 120b consommé > 80 % (d'après la dernière sonde) |
 | `supabase_db` | taille base > 80 % de la limite |
 | `supabase_storage` | stockage > 80 % de la limite |
 | `activity_drop` | 0 demande IA sur 2 h, entre 8h et 23h (Paris), alors que la même tranche J-7 en comptait ≥ 5 |
