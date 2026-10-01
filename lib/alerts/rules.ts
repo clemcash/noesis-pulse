@@ -13,7 +13,8 @@ export type RuleContext = {
   lastSnapshotAt: string | null;
 };
 
-export type RuleResult = { firing: boolean; message: string };
+// firing: null = inconnu (donnée manquante) : ni ouverture ni résolution
+export type RuleResult = { firing: boolean | null; message: string };
 
 export const RULE_META: Record<RuleKey, { label: string; unit: "none" | "ms" | "ratio" | "count" | "min"; help: string }> = {
   groq_down: { label: "Groq en panne", unit: "none", help: "API Groq KO sur 2 relevés, ou dernière sonde gpt-oss-120b en échec" },
@@ -26,6 +27,7 @@ export const RULE_META: Record<RuleKey, { label: string; unit: "none" | "ms" | "
 };
 
 const quiet: RuleResult = { firing: false, message: "" };
+const unknown: RuleResult = { firing: null, message: "" };
 const fire = (message: string): RuleResult => ({ firing: true, message });
 const shortName = (model: string) => model.replace(/^openai\//, "");
 const seconds = (ms: number) => `${(ms / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} s`;
@@ -40,27 +42,29 @@ export function checkRule(rule: AlertRule, ctx: RuleContext): RuleResult {
       const b = ctx.previous?.groq?.api;
       if (a && b && !a.ok && !b.ok) return fire(`🔴 API Groq injoignable depuis 2 relevés (${a.error ?? "erreur"})`);
       if (primary && !primary.ok) return fire(`🔴 Groq ${shortName(MODELS.primary)} en échec : ${primary.error ?? "erreur"}`);
+      if (!ctx.latest?.groq && !primary) return unknown;
       return quiet;
     }
     case "groq_slow": {
+      if (!primary) return unknown;
       if (primary?.ok && primary.latencyMs != null && primary.latencyMs > t) {
         return fire(`🐢 Groq ${shortName(MODELS.primary)} lent : ${seconds(primary.latencyMs)} (seuil ${seconds(t)})`);
       }
       return quiet;
     }
     case "groq_quota": {
-      if (!primary || !primary.limitRequests || primary.remainingRequests == null) return quiet;
+      if (!primary || !primary.limitRequests || primary.remainingRequests == null) return unknown;
       const used = 1 - primary.remainingRequests / primary.limitRequests;
       return used > t ? fire(`⚠️ Quota Groq du jour consommé à ${formatPct(used)} (${primary.remainingRequests} requêtes restantes)`) : quiet;
     }
     case "supabase_db":
     case "supabase_storage": {
       const s = ctx.latest?.supabase;
-      if (!s) return quiet;
+      if (!s) return unknown;
       const isDb = rule.key === "supabase_db";
       const used = isDb ? s.dbBytes : s.storageBytes;
       const limit = isDb ? s.dbLimitBytes : s.storageLimitBytes;
-      if (!limit) return quiet;
+      if (!limit) return unknown;
       const ratio = used / limit;
       const what = isDb ? "Base Noesis" : "Stockage Noesis";
       return ratio > t ? fire(`⚠️ ${what} à ${formatPct(ratio)} (${formatBytes(used)} / ${formatBytes(limit)})`) : quiet;
@@ -70,7 +74,8 @@ export function checkRule(rule: AlertRule, ctx: RuleContext): RuleResult {
       const start = rule.params.startHour ?? 8;
       const end = rule.params.endHour ?? 23;
       const minLastWeek = rule.params.minLastWeek ?? 5;
-      if (h < start || h >= end || ctx.ai2h == null || ctx.ai2hLastWeek == null) return quiet;
+      if (h < start || h >= end) return quiet;
+      if (ctx.ai2h == null || ctx.ai2hLastWeek == null) return unknown;
       if (ctx.ai2h <= t && ctx.ai2hLastWeek >= minLastWeek) {
         return fire(`📉 ${ctx.ai2h} demande IA en 2 h (${ctx.ai2hLastWeek} la semaine dernière à la même heure)`);
       }
@@ -88,9 +93,13 @@ export function diffAlerts(rules: AlertRule[], ctx: RuleContext, open: Alert[]) 
   const toOpen: { rule_key: RuleKey; message: string }[] = [];
   const toResolve: { alert: Alert; message: string }[] = [];
   for (const rule of rules) {
-    if (!rule.enabled) continue;
-    const res = checkRule(rule, ctx);
     const current = open.find((a) => a.rule_key === rule.key);
+    if (!rule.enabled) {
+      if (current) toResolve.push({ alert: current, message: `ℹ️ Règle désactivée : ${RULE_META[rule.key].label}` });
+      continue;
+    }
+    const res = checkRule(rule, ctx);
+    if (res.firing === null) continue;
     if (res.firing && !current) toOpen.push({ rule_key: rule.key, message: res.message });
     if (!res.firing && current) toResolve.push({ alert: current, message: `✅ Résolu : ${RULE_META[rule.key].label}` });
   }

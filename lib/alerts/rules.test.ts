@@ -54,8 +54,8 @@ describe("groq_slow / groq_quota", () => {
     const res = checkRule(rule("groq_quota", 0.8), ctx({ probes: { [MODELS.primary]: probe({ remainingRequests: 150 }) } }));
     expect(res).toEqual({ firing: true, message: "⚠️ Quota Groq du jour consommé à 85 % (150 requêtes restantes)" });
   });
-  it("quota inconnu → calme", () => {
-    expect(checkRule(rule("groq_quota", 0.8), ctx({ probes: {} })).firing).toBe(false);
+  it("quota inconnu → inconnu", () => {
+    expect(checkRule(rule("groq_quota", 0.8), ctx({ probes: {} })).firing).toBeNull();
   });
 });
 
@@ -68,8 +68,8 @@ describe("supabase", () => {
   it("stockage sous le seuil", () => {
     expect(checkRule(rule("supabase_storage", 0.8), ctx()).firing).toBe(false);
   });
-  it("supabase null → calme", () => {
-    expect(checkRule(rule("supabase_db", 0.8), ctx({ latest: snap({ supabase: null }) })).firing).toBe(false);
+  it("supabase null → inconnu", () => {
+    expect(checkRule(rule("supabase_db", 0.8), ctx({ latest: snap({ supabase: null }) })).firing).toBeNull();
   });
 });
 
@@ -116,8 +116,26 @@ describe("diffAlerts", () => {
     const d = diffAlerts([rule("groq_slow", 5000)], ctx(), [openAlert]);
     expect(d.toResolve).toEqual([{ alert: openAlert, message: "✅ Résolu : Groq lent" }]);
   });
-  it("ignore une règle désactivée", () => {
+  it("ne résout ni n'ouvre quand la donnée est manquante", () => {
+    const a: Alert = { ...openAlert, rule_key: "supabase_db" };
+    const d = diffAlerts([rule("supabase_db", 0.8)], ctx({ latest: snap({ supabase: null }) }), [a]);
+    expect(d).toEqual({ toOpen: [], toResolve: [] });
+  });
+  it("règle désactivée : n'ouvre jamais", () => {
     const d = diffAlerts([rule("groq_slow", 5000, {}, false)], slowCtx, []);
     expect(d).toEqual({ toOpen: [], toResolve: [] });
+  });
+  it("règle désactivée avec alerte ouverte → résolue", () => {
+    const d = diffAlerts([rule("groq_slow", 5000, {}, false)], slowCtx, [openAlert]);
+    expect(d.toResolve).toEqual([{ alert: openAlert, message: "ℹ️ Règle désactivée : Groq lent" }]);
+    expect(d.toOpen).toEqual([]);
+  });
+  it("probe absente : groq_slow inconnu, groq_down inconnu sans API ni sonde", () => {
+    expect(checkRule(rule("groq_slow", 5000), ctx({ probes: {} })).firing).toBeNull();
+    expect(checkRule(rule("groq_down", 1), ctx({ probes: {}, latest: snap({ groq: null }) })).firing).toBeNull();
+  });
+  it("activity_drop : donnée manquante inconnue, hors fenêtre faux", () => {
+    expect(checkRule(rule("activity_drop", 0), ctx({ ai2h: null })).firing).toBeNull();
+    expect(checkRule(rule("activity_drop", 0), ctx({ now: new Date("2026-09-30T01:00:00Z"), ai2h: null })).firing).toBe(false);
   });
 });
