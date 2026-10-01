@@ -96,11 +96,18 @@ export type SeriesPoint = { t: string; n: number };
 
 export function aiSeriesSql(from: Date, to: Date, bucket: "hour" | "day"): string {
   const step = bucket === "hour" ? "1 hour" : "1 day";
+  // Jours coupés à minuit Paris (date_trunc 3 args). La série est générée en heure locale
+  // puis reconvertie, pour rester juste lors des changements d'heure (jours de 23 h / 25 h).
+  const trunc = (e: string) => (bucket === "day" ? `date_trunc('day', ${e}, 'Europe/Paris')` : `date_trunc('hour', ${e})`);
+  const series =
+    bucket === "day"
+      ? `select generate_series(${trunc(lit.ts(from))} at time zone 'Europe/Paris', ${trunc(lit.ts(to))} at time zone 'Europe/Paris', interval '${step}') at time zone 'Europe/Paris' as t`
+      : `select generate_series(${trunc(lit.ts(from))}, ${trunc(lit.ts(to))}, interval '${step}') as t`;
   return `
 with b as (
-  select generate_series(date_trunc('${bucket}', ${lit.ts(from)}), date_trunc('${bucket}', ${lit.ts(to)}), interval '${step}') as t
+  ${series}
 ),
-ai as (select date_trunc('${bucket}', created_at) as t from (${AI_UNION}) x where created_at > ${lit.ts(from)})
+ai as (select ${trunc("created_at")} as t from (${AI_UNION}) x where created_at > ${lit.ts(from)})
 select b.t, count(ai.t)::int as n from b left join ai on ai.t = b.t group by b.t order by b.t`;
 }
 
@@ -190,7 +197,7 @@ export function userDetailSql(id: string): string {
   return `
 with act as (select * from (${ACT_UNION}) a where user_id = ${u}),
 ai as (select feature, created_at from (${AI_UNION}) x where user_id = ${u}),
-days as (select generate_series(date_trunc('day', now() - interval '30 days'), date_trunc('day', now()), interval '1 day') as d)
+days as (select generate_series(date_trunc('day', now() - interval '30 days', 'Europe/Paris') at time zone 'Europe/Paris', date_trunc('day', now(), 'Europe/Paris') at time zone 'Europe/Paris', interval '1 day') at time zone 'Europe/Paris' as d)
 select
   u.id, u.email, u.created_at, u.last_sign_in_at,
   (select max(created_at) from act) as last_activity,
@@ -199,8 +206,8 @@ select
   (select count(*) from public.documents where user_id = ${u})::int as documents,
   (select json_agg(json_build_object(
       'day', days.d,
-      'actions', (select count(*) from act where date_trunc('day', act.created_at) = days.d),
-      'ai', (select count(*) from ai where date_trunc('day', ai.created_at) = days.d)
+      'actions', (select count(*) from act where date_trunc('day', act.created_at, 'Europe/Paris') = days.d),
+      'ai', (select count(*) from ai where date_trunc('day', ai.created_at, 'Europe/Paris') = days.d)
     ) order by days.d) from days) as daily,
   (select coalesce(json_agg(json_build_object('feature', feature, 'n', n) order by n desc), '[]')
      from (select feature, count(*)::int as n from ai group by feature) z) as feature_counts,

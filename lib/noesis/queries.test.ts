@@ -17,6 +17,7 @@ describe("toutes les requêtes passent la garde lecture seule", () => {
     q.collectSql(),
     q.kpiSql(hoursAgo(24), hoursAgo(48)),
     q.aiSeriesSql(hoursAgo(24), now(), "hour"),
+    q.aiSeriesSql(hoursAgo(24 * 30), now(), "day"),
     q.byFeatureSql(hoursAgo(24)),
     q.latestSignupsSql(5),
     q.usersListSql(),
@@ -59,6 +60,15 @@ describe("séries et répartition", () => {
     const s = q.mapSeries(await query(db, q.aiSeriesSql(hoursAgo(24), now(), "hour")));
     expect(s.length).toBeGreaterThanOrEqual(24);
     expect(s.reduce((a, p) => a + p.n, 0)).toBe(3);
+  });
+  it("aiSeries jour : tranches à minuit Paris, total >= 3 (30 j couvrent aussi les lignes plus anciennes)", async () => {
+    const s = q.mapSeries(await query(db, q.aiSeriesSql(hoursAgo(24 * 30), now(), "day")));
+    expect(s.length).toBeGreaterThanOrEqual(30);
+    expect(s.reduce((a, p) => a + p.n, 0)).toBeGreaterThanOrEqual(3);
+    for (const p of s) {
+      const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", hour: "2-digit", hourCycle: "h23" }).format(new Date(p.t)));
+      expect(h).toBe(0);
+    }
   });
   it("byFeature ventile le chat par mode", async () => {
     const f = q.mapByFeature(await query(db, q.byFeatureSql(hoursAgo(24))));

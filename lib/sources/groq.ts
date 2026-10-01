@@ -38,7 +38,7 @@ export async function probeGroqModel(model: string, opts: Opts & { at?: Date } =
       method: "POST",
       headers: { Authorization: `Bearer ${opts.key ?? env.groqKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }], max_completion_tokens: 16, reasoning_effort: "low" }),
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(10_000),
       cache: "no-store",
     });
     const latencyMs = now() - start;
