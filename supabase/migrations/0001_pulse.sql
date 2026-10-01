@@ -25,7 +25,7 @@ create table if not exists public.alerts (
   resolved_at timestamptz,
   message text not null
 );
-create index if not exists alerts_open on public.alerts (rule_key) where resolved_at is null;
+create unique index if not exists alerts_open on public.alerts (rule_key) where resolved_at is null;
 create index if not exists alerts_opened_at on public.alerts (opened_at desc);
 
 -- RLS sans aucune policy : seul le service_role (serveur) peut lire/écrire.

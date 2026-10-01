@@ -36,6 +36,7 @@ export async function snapshotsSince(from: Date, to: Date = new Date()): Promise
         .gte("taken_at", from.toISOString())
         .lt("taken_at", to.toISOString())
         .order("taken_at", { ascending: true })
+        .order("id", { ascending: true })
         .range(i, i + page - 1),
     ) as Snapshot[];
     out.push(...rows);

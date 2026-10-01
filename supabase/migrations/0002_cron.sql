@@ -18,5 +18,5 @@ $$;
 revoke all on function public.pulse_call(text) from public, anon, authenticated;
 
 select cron.schedule('pulse-collect',      '*/5 * * * *',  $$select public.pulse_call('/api/collect')$$);
-select cron.schedule('pulse-health-check', '*/15 * * * *', $$select public.pulse_call('/api/health-check')$$);
+select cron.schedule('pulse-health-check', '2-59/15 * * * *', $$select public.pulse_call('/api/health-check')$$);
 select cron.schedule('pulse-digest',       '0 6,7 * * *',  $$select public.pulse_call('/api/digest')$$);
