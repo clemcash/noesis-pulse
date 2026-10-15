@@ -32,6 +32,16 @@ npm test
    puis exécuter `supabase/migrations/0002_cron.sql`.
 6. **Vérifier** : `curl -X POST -H "Authorization: Bearer <CRON_SECRET>" https://<ton-domaine>/api/collect` → `{"ok":true,…}` ; page Alertes → « Tester Telegram ».
 
+## Retours bêta (page « Retours bêta »)
+
+Les 50 premiers comptes de Neosis sont testeurs : chaque samedi (heure de Paris), un questionnaire s'ouvre dans l'app à leur prochaine visite. Pulse relève les réponses chaque matin (`/api/feedback-sync`), les regroupe avec Groq en points à traiter (bugs, IA, interface, idées, ce qui plaît) et envoie un résumé Telegram. Le bouton **Générer des solutions** lance le workflow GitHub `beta-feedback.yml` du dépôt Neosis : Claude code des correctifs ciblés (jamais dans les zones verrouillées de `.github/beta-feedback/protected-paths.txt`), la CI vérifie, puis une pull request est ouverte. Rien n'est mis en ligne sans fusion manuelle.
+
+Mise en place :
+1. Base **Neosis** : exécuter `supabase/migrations/20261015120000_beta_feedback.sql` (dépôt intellect-lab).
+2. Base **Pulse** : exécuter `supabase/migrations/0003_feedback.sql` (après `0002_cron.sql`).
+3. Dépôt **intellect-lab** sur GitHub : fusionner le workflow dans `main` ; Settings → Secrets and variables → Actions → secret `CLAUDE_CODE_OAUTH_TOKEN` (obtenu avec `claude setup-token`, utilise l'abonnement Claude) ; Settings → Actions → General → cocher « Allow GitHub Actions to create and approve pull requests ».
+4. **Vercel** (Pulse) : ajouter `GITHUB_DISPATCH_TOKEN` (jeton fine-grained limité au dépôt intellect-lab, permission *Actions : Read and write*).
+
 ## Ce qui est mesuré
 
 - **En ligne** : utilisateurs distincts avec une action ou une session rafraîchie dans les 5 dernières minutes (estimation).

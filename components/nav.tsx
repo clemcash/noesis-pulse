@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/", label: "Vue d'ensemble" },
   { href: "/users", label: "Utilisateurs" },
   { href: "/apis", label: "IA & APIs" },
+  { href: "/feedback", label: "Retours bêta" },
   { href: "/alerts", label: "Alertes" },
 ];
 
@@ -36,7 +37,7 @@ export function Nav({ lastSnapshotAt }: { lastSnapshotAt: string | null }) {
         <span className="text-xs opacity-60" suppressHydrationWarning>
           {lastSnapshotAt ? `Relevé ${timeAgo(lastSnapshotAt)}` : "Aucun relevé"}
         </span>
-        {!pathname.startsWith("/alerts") && !/^\/users\/.+/.test(pathname) && <PeriodSelect current={period} pathname={pathname} />}
+        {!pathname.startsWith("/alerts") && !pathname.startsWith("/feedback") && !/^\/users\/.+/.test(pathname) && <PeriodSelect current={period} pathname={pathname} />}
       </div>
     </header>
   );

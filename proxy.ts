@@ -4,7 +4,7 @@ import { isAllowedEmail } from "@/lib/auth/allowed";
 import { isDemo } from "@/lib/env";
 
 // Sans session : pages de connexion + routes appelées par pg_cron (protégées par CRON_SECRET).
-const PUBLIC = ["/login", "/auth/callback", "/api/collect", "/api/digest", "/api/health-check"];
+const PUBLIC = ["/login", "/auth/callback", "/api/collect", "/api/digest", "/api/health-check", "/api/feedback-sync"];
 
 export async function proxy(req: NextRequest) {
   if (isDemo()) return NextResponse.next();
