@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { isAllowedEmail } from "@/lib/auth/allowed";
-import { env, isDemo } from "@/lib/env";
+import { env, isDemo, isLocal } from "@/lib/env";
 
 export async function supabaseServer() {
   const store = await cookies();
@@ -24,6 +24,7 @@ export async function supabaseServer() {
 /** À appeler en tête de chaque layout/page/server action protégé. */
 export async function requireUser(): Promise<{ email: string }> {
   if (isDemo()) return { email: "demo@local" };
+  if (isLocal()) return { email: "local" };
   const sb = await supabaseServer();
   const { data } = await sb.auth.getUser();
   const email = data.user?.email ?? "";

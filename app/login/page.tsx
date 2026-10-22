@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
-import { isDemo } from "@/lib/env";
+import { isDemo, isLocal } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erreur?: string }> }) {
-  if (isDemo()) redirect("/");
+  if (isDemo() || isLocal()) redirect("/");
   const { erreur } = await searchParams;
   return (
     <main className="flex min-h-screen items-center justify-center px-4">

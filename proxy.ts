@@ -1,13 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedEmail } from "@/lib/auth/allowed";
-import { isDemo } from "@/lib/env";
+import { isDemo, isLocal } from "@/lib/env";
 
 // Sans session : pages de connexion + routes appelées par pg_cron (protégées par CRON_SECRET).
 const PUBLIC = ["/login", "/auth/callback", "/api/collect", "/api/digest", "/api/health-check", "/api/feedback-sync"];
 
 export async function proxy(req: NextRequest) {
-  if (isDemo()) return NextResponse.next();
+  if (isDemo() || isLocal()) return NextResponse.next();
   const { pathname } = req.nextUrl;
   if (PUBLIC.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return NextResponse.next();
 

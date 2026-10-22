@@ -13,6 +13,10 @@ npm run dev   # http://localhost:3020 — données fictives, pas de connexion
 npm test
 ```
 
+### En local avec les vraies données Noesis
+
+Dans `.env.local` : `NOESIS_PROJECT_REF`, `SUPABASE_MANAGEMENT_TOKEN`, `GROQ_API_KEY` et `PULSE_LOCAL=1` (sans `PULSE_DEMO`). Pas de connexion ; sans base Pulse, les tuiles issues des relevés (santé, en ligne, alertes, retours) restent en erreur, le reste affiche les vraies données.
+
 ## Mise en production
 
 1. **Projet Supabase « noesis-pulse »** (séparé de Noesis, plan gratuit)

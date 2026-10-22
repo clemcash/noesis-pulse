@@ -22,6 +22,11 @@ export function isDemo(): boolean {
   return process.env.PULSE_DEMO === "1" && process.env.NODE_ENV !== "production";
 }
 
+/** Vraies données Noesis sans connexion ni base Pulse : uniquement en local, jamais en production. */
+export function isLocal(): boolean {
+  return process.env.PULSE_LOCAL === "1" && process.env.NODE_ENV !== "production";
+}
+
 const MB = 1024 * 1024;
 
 export function limits(): { dbLimitBytes: number; storageLimitBytes: number } {
